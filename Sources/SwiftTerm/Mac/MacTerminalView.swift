@@ -96,7 +96,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     public var terminal: Terminal!
 
     var selection: SelectionService!
-    private var scroller: NSScroller!
+//    private var scroller: NSScroller!
     
     // Attribute dictionary, maps a console attribute (color, flags) to the corresponding dictionary
     // of attributes for an NSAttributedString
@@ -164,7 +164,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         if #available(macOS 14, *) {
             self.clipsToBounds = true
         }
-        setupScroller()
+//        setupScroller()
         setupOptions()
         setupFocusNotification()
     }
@@ -275,45 +275,45 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
     }
     
-    @objc
-    func scrollerActivated ()
-    {
-        switch scroller.hitPart {
-        case .decrementPage:
-            pageUp()
-            scroller.doubleValue =  scrollPosition
-        case .incrementPage:
-            pageDown()
-            scroller.doubleValue =  scrollPosition
-        case .knob:
-            scroll(toPosition: scroller.doubleValue)
-        case .knobSlot:
-            print ("Scroller .knobSlot clicked")
-        case .noPart:
-            print ("Scroller .noPart clicked")
-        case .decrementLine:
-            print ("Scroller .decrementLine clicked")
-        case .incrementLine:
-            print ("Scroller .incrementLine clicked")
-        default:
-            print ("Scroller: New value introduced")
-        }
-    }
+//    @objc
+//    func scrollerActivated ()
+//    {
+//        switch scroller.hitPart {
+//        case .decrementPage:
+//            pageUp()
+//            scroller.doubleValue =  scrollPosition
+//        case .incrementPage:
+//            pageDown()
+//            scroller.doubleValue =  scrollPosition
+//        case .knob:
+//            scroll(toPosition: scroller.doubleValue)
+//        case .knobSlot:
+//            print ("Scroller .knobSlot clicked")
+//        case .noPart:
+//            print ("Scroller .noPart clicked")
+//        case .decrementLine:
+//            print ("Scroller .decrementLine clicked")
+//        case .incrementLine:
+//            print ("Scroller .incrementLine clicked")
+//        default:
+//            print ("Scroller: New value introduced")
+//        }
+//    }
     
     
-    func setupScroller()
-    {
-        let style: NSScroller.Style = .legacy
-        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: style)
-        scroller = NSScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
-        scroller.autoresizingMask = [.minXMargin, .height]
-        scroller.scrollerStyle = style
-        scroller.knobProportion = 0.1
-        scroller.isEnabled = false
-        addSubview (scroller)
-        scroller.action = #selector(scrollerActivated)
-        scroller.target = self
-    }
+//    func setupScroller()
+//    {
+//        let style: NSScroller.Style = .legacy
+//        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: style)
+//        scroller = NSScroller(frame: NSRect(x: bounds.maxX - scrollerWidth, y: 0, width: scrollerWidth, height: bounds.height))
+//        scroller.autoresizingMask = [.minXMargin, .height]
+//        scroller.scrollerStyle = style
+//        scroller.knobProportion = 0.1
+//        scroller.isEnabled = false
+//        addSubview (scroller)
+//        scroller.action = #selector(scrollerActivated)
+//        scroller.target = self
+//    }
     
     /// This method sents the `nativeForegroundColor` and `nativeBackgroundColor`
     /// to match macOS default colors for text and its background.
@@ -325,7 +325,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     }
     
     open func bufferActivated(source: Terminal) {
-        updateScroller ()
+//        updateScroller ()
     }
     
     open func send(source: Terminal, data: ArraySlice<UInt8>) {
@@ -337,17 +337,17 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
      */
     open func getOptimalFrameSize () -> NSRect
     {
-        return NSRect (x: 0, y: 0, width: cellDimension.width * CGFloat(terminal.cols) + scroller.frame.width, height: cellDimension.height * CGFloat(terminal.rows))
+        return NSRect (x: 0, y: 0, width: cellDimension.width * CGFloat(terminal.cols) /*+ scroller.frame.width*/, height: cellDimension.height * CGFloat(terminal.rows))
     }
     
     func getEffectiveWidth (size: CGSize) -> CGFloat
     {
-        return (size.width-scroller.frame.width)
+        return (size.width/*-scroller.frame.width*/)
     }
     
     open func scrolled(source terminal: Terminal, yDisp: Int) {
         //selectionView.notifyScrolled(source: terminal)
-        updateScroller()
+//        updateScroller()
         terminalDelegate?.scrolled(source: self, position: scrollPosition)
     }
     
@@ -371,12 +371,12 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
         debug?.update()
     }
     
-    func updateScroller ()
-    {
-        scroller.isEnabled = canScroll
-        scroller.doubleValue = scrollPosition
-        scroller.knobProportion = scrollThumbsize
-    }
+//    func updateScroller ()
+//    {
+//        scroller.isEnabled = canScroll
+//        scroller.doubleValue = scrollPosition
+//        scroller.knobProportion = scrollThumbsize
+//    }
     
     var userScrolling = false
 
@@ -433,7 +433,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     public override func resizeSubviews(withOldSize oldSize: NSSize) {
         super.resizeSubviews(withOldSize: oldSize)
-        updateScroller()
+//        updateScroller()
         selection.active = false
     }
     
@@ -1185,7 +1185,7 @@ open class TerminalView: NSView, NSTextInputClient, NSUserInterfaceValidations, 
     
     public func sizeChanged(source: Terminal) {
         terminalDelegate?.sizeChanged(source: self, newCols: source.cols, newRows: source.rows)
-        updateScroller ()
+//        updateScroller ()
     }
     
     func ensureCaretIsVisible ()
