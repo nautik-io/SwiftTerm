@@ -12,10 +12,10 @@ enum ArgumentError : Error {
     case invalidArgument(String)
 }
 
-class CircularList<T> {
-    private var array: [T?]
-    private var startIndex: Int
-    var count: Int {
+public class CircularList<T> {
+    var array: [T?]
+    var startIndex: Int
+    public var count: Int {
         get {
             return _count
         }
@@ -33,7 +33,7 @@ class CircularList<T> {
     }
 
     private var _count: Int
-    var maxLength: Int {
+    public var maxLength: Int {
         didSet {
             if maxLength != oldValue {
                 let empty : T? = nil
@@ -71,7 +71,7 @@ class CircularList<T> {
         getCyclicIndex(index)
     }
 
-    subscript (index: Int) -> T {
+    public subscript (index: Int) -> T {
         get {
             let idx = getCyclicIndex(index)
             if let p = array [idx] {
@@ -216,10 +216,10 @@ class CircularList<T> {
     }
 }
 
-internal class CircularBufferLineList {
+public class CircularBufferLineList {
     private var array: [BufferLine?]
     private var startIndex: Int
-    var count: Int {
+    public var count: Int {
         get {
             return _count
         }
@@ -292,7 +292,7 @@ internal class CircularBufferLineList {
         return getCyclicIndex(index)
     }
 
-    subscript (index: Int) -> BufferLine {
+    public subscript (index: Int) -> BufferLine {
         _read {
             let idx = getCyclicIndex(index)
             if array[idx] == nil {
