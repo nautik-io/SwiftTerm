@@ -249,7 +249,7 @@ public struct CharData: CustomDebugStringConvertible {
     static let invertedAttr = Attribute(fg: .defaultInvertedColor, bg: .defaultInvertedColor, style: .none)
     
     // Contains a rune, or a pointer into a Grapheme Cluster
-    var code: Int32
+    public var code: Int32
     
     ///Contains the number of columns used by the `Character` stored in this `CharData` on the screen.
     public private(set) var width: Int8

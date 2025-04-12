@@ -21,7 +21,7 @@ public class BufferLine: CustomDebugStringConvertible {
         /// Renders the bottom of a character, using two cells
         case doubledDown
     }
-    var isWrapped: Bool
+    public var isWrapped: Bool
     var renderMode: RenderLineMode = .single
     lazy var data: [CharData] = {
         isDataInitialised = true

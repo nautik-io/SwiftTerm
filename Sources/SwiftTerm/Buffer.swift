@@ -28,7 +28,7 @@ public class Buffer {
     /// This is the index into the `lines` array that corresponds to the top row of displayed
     /// content in the terminal when the scroll is zero.   So the terminal contents that the application
     /// has access to are `lines [yBase..(yBase+rows)]`
-    var yBase: Int {
+    public var yBase: Int {
         get { _yBase }
         set {
             if newValue > _lines.count {
@@ -172,7 +172,7 @@ public class Buffer {
     
     weak var terminal: Terminal!
     
-    var lines : CircularList<BufferLine> {
+    public var lines : CircularList<BufferLine> {
         get { return _lines }
     }
     
