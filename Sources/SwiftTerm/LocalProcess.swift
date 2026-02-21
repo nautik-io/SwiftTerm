@@ -9,10 +9,6 @@
 #if !os(iOS) && !os(Windows)
 import Foundation
 import Dispatch
-#if canImport(Subprocess)
-import Subprocess
-import System
-#endif
 
 /// Delegate that is invoked by the ``LocalProcess`` class in response to various
 /// process-related events.
@@ -58,7 +54,7 @@ public protocol LocalProcessDelegate: AnyObject {
  *
  * The `childfd` property has the Unix file descriptor for the primary side of the created pseudo-terminal.
  *
- * This implementation uses swift-subprocess with openpty/login_tty for pseudo-terminal support.
+ * This implementation uses forkpty-based pseudo-terminal support.
  */
 public class LocalProcess {
     let readSize = 128*1024
@@ -85,13 +81,6 @@ public class LocalProcess {
     var readQueue: DispatchQueue
     
     var io: DispatchIO?
-    
-    #if canImport(Subprocess)
-    // Swift Subprocess related properties
-    private var subprocessTask: Task<Void, Error>?
-    private var masterFd: Int32 = -1
-    private var slaveFd: Int32 = -1
-    #endif
     
     /**
      * Initializes the LocalProcess runner and communication with the host happens via the provided
@@ -142,29 +131,6 @@ public class LocalProcess {
     /* Used to generate the next file name counter */
     var logFileCounter = 0
     
-    #if canImport(Subprocess)
-    // Create pseudo-terminal pair using openpty
-    private func createPseudoTerminal() throws -> (master: Int32, slave: Int32) {
-        var master: Int32 = -1
-        var slave: Int32 = -1
-        
-        let result = openpty(&master, &slave, nil, nil, nil)
-        guard result == 0 else {
-            throw POSIXError(.init(rawValue: errno)!)
-        }
-        
-        return (master: master, slave: slave)
-    }
-    
-    // Set up login tty for the slave side
-    private func setupLoginTty(slaveFd: Int32) throws {
-        let result = login_tty(slaveFd)
-        guard result == 0 else {
-            throw POSIXError(.init(rawValue: errno)!)
-        }
-    }
-    #endif
-
     func childStopped() {
         running = false
 #if os(macOS)
@@ -244,111 +210,8 @@ public class LocalProcess {
         if running {
             return
         }
-        
-        #if canImport(Subprocess)
-        startProcessWithSubprocess(executable: executable, args: args, environment: environment, execName: execName, currentDirectory: currentDirectory)
-        #else
         startProcessWithForkpty(executable: executable, args: args, environment: environment, execName: execName, currentDirectory: currentDirectory)
-        #endif
     }
-    
-    #if canImport(Subprocess)
-    private func startProcessWithSubprocess(executable: String, args: [String], environment: [String]?, execName: String?, currentDirectory: String?) {
-        do {
-            var size = delegate?.getWindowSize () ?? winsize()
-            
-            // Create pseudo-terminal pair using openpty
-            let (master, slave) = try createPseudoTerminal()
-            self.masterFd = master
-            self.slaveFd = slave
-            self.childfd = master
-            
-            // Set window size on the master fd
-            _ = PseudoTerminalHelpers.setWinSize(masterPtyDescriptor: master, windowSize: &size)
-            
-            // Prepare environment
-            var env: [String: String] = [:]
-            let envArray = environment ?? Terminal.getEnvironmentVariables(termName: "xterm-256color")
-            for envVar in envArray {
-                let components = envVar.split(separator: "=", maxSplits: 1)
-                if components.count == 2 {
-                    env[String(components[0])] = String(components[1])
-                }
-            }
-            
-            // Create FileDescriptor instances for swift-subprocess
-            let slaveFileDescriptor = System.FileDescriptor(rawValue: slave)
-            
-            // Mark as running and set up I/O for reading from master fd first
-            running = true
-            // Capture FD values for cleanup handler to close them safely after DispatchIO is done
-            let masterToClose = master
-            let slaveToClose = slave
-            io = DispatchIO(type: .stream, fileDescriptor: master, queue: dispatchQueue, cleanupHandler: { _ in
-                // Close file descriptors after DispatchIO has finished with them
-                // This prevents EV_VANISHED crash by ensuring proper cleanup order
-                close(masterToClose)
-                close(slaveToClose)
-            })
-            guard let io else {
-                return
-            }
-            io.setLimit(lowWater: 1)
-            io.setLimit(highWater: readSize)
-            io.read(offset: 0, length: readSize, queue: readQueue, ioHandler: childProcessRead)
-            
-            // Start subprocess with swift-subprocess asynchronously
-            Task {
-                do {
-                    // Start subprocess with swift-subprocess, using the slave side of the pty
-                    // The subprocess will automatically handle the pseudo-terminal setup when using FileDescriptor I/O
-                    var options = PlatformOptions()
-                    options.preSpawnProcessConfigurator = { spawnAttr, fileAttr in
-                        var flags: Int16 = 0
-                        posix_spawnattr_getflags(&spawnAttr, &flags)
-                        posix_spawnattr_setflags(&spawnAttr, flags | Int16(POSIX_SPAWN_SETSID))
-                        
-                    }
-                    let result = try await Subprocess.run(
-                        .name(executable),
-                        arguments: Arguments(executablePathOverride: execName ?? executable, remainingValues: Array(args)),
-                        environment: .custom(Dictionary(uniqueKeysWithValues: env.map { (Environment.Key(stringLiteral: $0.key), $0.value) })),
-                        workingDirectory: currentDirectory.map { System.FilePath($0) },
-                        platformOptions: options,
-                        input: .fileDescriptor(slaveFileDescriptor, closeAfterSpawningProcess: true),
-                        output: .fileDescriptor(slaveFileDescriptor, closeAfterSpawningProcess: false),
-                        error: .fileDescriptor(slaveFileDescriptor, closeAfterSpawningProcess: false)
-                    )
-                    
-                    // Process completed
-                    await MainActor.run {
-                        childStopped()
-                        let exitCode: Int32?
-                        switch result.terminationStatus {
-                        case .exited(let code):
-                            exitCode = code
-                        default:
-                            exitCode = nil
-                        }
-                        self.delegate?.processTerminated(self, exitCode: exitCode)
-                    }
-
-                } catch {
-                    await MainActor.run {
-                        childStopped()
-                        self.delegate?.processTerminated(self, exitCode: nil)
-                    }
-                    print("Failed to start process with swift-subprocess: \(error)")
-                }
-            }
-            
-        } catch {
-            childStopped()
-            delegate?.processTerminated(self, exitCode: nil)
-            print("Failed to create pseudo-terminal: \(error)")
-        }
-    }
-    #endif
     
     private func startProcessWithForkpty(executable: String, args: [String], environment: [String]?, execName: String?, currentDirectory: String?) {
         var size = delegate?.getWindowSize () ?? winsize()
@@ -400,21 +263,10 @@ public class LocalProcess {
 
     public func terminate()
     {
-        #if canImport(Subprocess)
-        if let task = subprocessTask {
-            task.cancel()
-            subprocessTask = nil
-        }
-
-        // Set FD markers to -1 (actual FDs are closed by DispatchIO cleanup handler)
-        masterFd = -1
-        slaveFd = -1
-        #endif
-
         // Close DispatchIO - this will trigger the cleanup handler which closes file descriptors
         // The cleanup handler ensures FDs are closed AFTER DispatchIO is done with them,
         // preventing "BUG IN CLIENT OF LIBDISPATCH: Unexpected EV_VANISHED" crash
-        // This applies to both Subprocess and forkpty paths
+        // This applies to the forkpty path
         io?.close()
         io = nil
         childfd = -1
